@@ -1,0 +1,7 @@
+fastapi==0.104.1
+uvicorn==0.24.0.post1
+pydantic==2.5.2
+# The below packages will be utilized once we implement the full CV pipeline.
+# opencv-python-headless==4.8.1.78
+# scikit-image==0.22.0
+# easyocr==1.7.1

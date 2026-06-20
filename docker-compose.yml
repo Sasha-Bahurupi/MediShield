@@ -41,5 +41,15 @@ services:
     ports:
       - "8000:8000"
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medishield_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
