@@ -23,13 +23,13 @@ export const submitScan = async (payload: ScanPayload): Promise<VerificationResp
   return response.json();
 };
 
-export const syncOfflineScans = async (): Promise<number> => {
+export const syncOfflineScans = async (): Promise<VerificationResponse[]> => {
   if (!navigator.onLine) {
     throw new Error("Cannot sync while offline.");
   }
 
   const scans = await getOfflineScans();
-  let syncedCount = 0;
+  let syncedResults: VerificationResponse[] = [];
 
   for (const scan of scans) {
     try {
@@ -37,17 +37,17 @@ export const syncOfflineScans = async (): Promise<number> => {
       const payloadToSync = { ...scan, isSyncedOffline: true };
       delete payloadToSync.id; // Remove the local IndexedDB id
       
-      await submitScan(payloadToSync);
+      const res = await submitScan(payloadToSync);
+      syncedResults.push(res);
       
       // Delete from local DB if successful
       if (scan.id !== undefined) {
         await deleteScan(scan.id);
       }
-      syncedCount++;
     } catch (error) {
       console.error("Failed to sync scan:", scan, error);
     }
   }
 
-  return syncedCount;
+  return syncedResults;
 };

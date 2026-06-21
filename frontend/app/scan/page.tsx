@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Camera, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, ImagePlus } from "lucide-react";
 import { submitScan, VerificationResponse } from "@/lib/api";
 import { saveScanOffline, ScanPayload } from "@/lib/db";
 import VerdictOverlay from "@/components/VerdictOverlay";
@@ -12,6 +12,7 @@ export default function ScannerPage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -110,6 +111,54 @@ export default function ScannerPage() {
     setIsProcessing(false);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessing(true);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+      if (!dataUrl) {
+        setIsProcessing(false);
+        return;
+      }
+
+      const base64Image = dataUrl.split(",")[1];
+      const coords = await getGeolocation();
+      
+      const payload: ScanPayload = {
+        skuId: "",
+        pharmacistId: "PHARM-101",
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        scanTimestamp: new Date().toISOString(),
+        clientDeviceId: "DEVICE-A1B2",
+        isSyncedOffline: false,
+        imageBase64: base64Image
+      };
+
+      if (navigator.onLine) {
+        try {
+          const response = await submitScan(payload);
+          setVerdict(response);
+        } catch (err) {
+          console.error("API error, falling back to offline", err);
+          await saveOffline(payload);
+        }
+      } else {
+        await saveOffline(payload);
+      }
+      setIsProcessing(false);
+    };
+    reader.onerror = () => {
+      setToastMessage("Error reading file");
+      setIsProcessing(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const saveOffline = async (payload: ScanPayload) => {
     try {
       await saveScanOffline(payload);
@@ -174,18 +223,35 @@ export default function ScannerPage() {
 
       {/* Controls */}
       <div className="bg-black pb-12 pt-6 flex flex-col items-center justify-center relative z-10">
-        <button
-          onClick={handleCapture}
-          disabled={isProcessing}
-          className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-gray-400 active:bg-gray-200 transition-colors disabled:opacity-50"
-        >
-          {isProcessing ? (
-            <Loader2 className="w-8 h-8 text-black animate-spin" />
-          ) : (
-            <Camera className="w-8 h-8 text-black" />
-          )}
-        </button>
-        <p className="text-white/70 mt-4 text-sm font-medium">Align packaging within frame</p>
+        <input 
+          type="file" 
+          accept="image/*" 
+          className="hidden" 
+          ref={fileInputRef} 
+          onChange={handleFileUpload} 
+        />
+        <div className="flex items-center gap-6">
+          <button
+            onClick={handleCapture}
+            disabled={isProcessing}
+            className="w-20 h-20 bg-white rounded-full flex items-center justify-center border-4 border-gray-400 active:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <Loader2 className="w-8 h-8 text-black animate-spin" />
+            ) : (
+              <Camera className="w-8 h-8 text-black" />
+            )}
+          </button>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isProcessing}
+            className="w-14 h-14 bg-gray-800 rounded-full flex items-center justify-center border-2 border-gray-600 active:bg-gray-700 transition-colors disabled:opacity-50"
+          >
+            <ImagePlus className="w-6 h-6 text-white" />
+          </button>
+        </div>
+        <p className="text-white/70 mt-4 text-sm font-medium">Align packaging or upload photo</p>
       </div>
 
       {/* Toast Notification */}

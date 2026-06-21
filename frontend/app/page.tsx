@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, ShieldCheck, WifiOff, RefreshCw } from "lucide-react";
 import { getOfflineScans, ScanPayload } from "@/lib/db";
-import { syncOfflineScans } from "@/lib/api";
+import { syncOfflineScans, VerificationResponse } from "@/lib/api";
 
 export default function Dashboard() {
   const [offlineScans, setOfflineScans] = useState<ScanPayload[]>([]);
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResults, setSyncResults] = useState<VerificationResponse[]>([]);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -41,7 +42,8 @@ export default function Dashboard() {
     if (!isOnline) return;
     setIsSyncing(true);
     try {
-      await syncOfflineScans();
+      const results = await syncOfflineScans();
+      setSyncResults((prev) => [...results, ...prev]);
       await fetchOfflineScans();
     } catch (e) {
       console.error(e);
@@ -102,6 +104,31 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {syncResults.length > 0 && (
+        <div className="mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+          <h2 className="text-lg font-bold text-gray-800 mb-3">Synced Results Log</h2>
+          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+            {syncResults.map((res, i) => (
+              <div key={i} className={`p-3 rounded-xl border ${
+                res.statusVerdict === 'VERIFIED' ? 'bg-green-50 border-green-200' :
+                res.statusVerdict === 'SUSPICIOUS' ? 'bg-amber-50 border-amber-200' :
+                'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex justify-between items-center">
+                  <span className={`font-bold text-sm ${
+                    res.statusVerdict === 'VERIFIED' ? 'text-green-700' :
+                    res.statusVerdict === 'SUSPICIOUS' ? 'text-amber-700' :
+                    'text-red-700'
+                  }`}>{res.statusVerdict}</span>
+                  <span className="text-xs text-gray-500 font-mono">Risk: {res.systemRiskScore}/100</span>
+                </div>
+                {res.message && <p className="text-xs text-gray-600 mt-1">{res.message}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
